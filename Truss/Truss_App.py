@@ -20,7 +20,7 @@ class MainWindow(Ui_TrussStructuralDesign,qtw.QWidget):
         self.controller.setDisplayWidgets((self.te_DesignReport, self.le_LinkName, self.le_Node1Name,
                                            self.le_Node2Name, self.le_LinkLength, self.gv_Main))
 
-        self.controller.view.scene.installEventFilter(self)  #JES Missing Code:  This calls the function from the view directly. Fix so that it only calls the controller directly.
+        self.controller.setinstallSceneEventFilter(self)  #  Done  :  This calls the function from the view directly. Fix so that it only calls the controller directly.
         self.gv_Main.setMouseTracking(True)
 
         self.show()
@@ -37,17 +37,17 @@ class MainWindow(Ui_TrussStructuralDesign,qtw.QWidget):
         :param event: The event itself
         :return: boolean from the parent widget
         """
-        #JES Missing code.  There are several places where functions in view are called directly. Fix these so that the only
+        # Done  .  There are several places where functions in view are called directly. Fix these so that the only
         # function calls are from the controller.
-        if obj == self.controller.view.scene:
+        if obj == self.controller.itemAtScene():  # done
             et = event.type()
             if et == qtc.QEvent.GraphicsSceneMouseMove:
                 scenePos = event.scenePos()
                 strScene = "Mouse Position:  x = {}, y = {}".format(round(scenePos.x(), 2), round(-scenePos.y(), 2))
-                s = self.controller.view.scene.itemAt(scenePos,self.gv_Main.transform())  # gets item from graphics scene under the mouse
+                s = self.controller.itemAt(scenePos,self.gv_Main.transform())  # gets item from graphics scene under the mouse   #  done
                 if s is not None and s.data(0) is not None:  # when creating nodes and pipes, I used the setData() function to store a name
                     strScene += ' (' + s.data(0) + ')'
-                items=self.controller.view.scene.items(event.scenePos())
+                items=self.controller.sceneItems(event.scenePos())  #  done
 
                 item_names = [item.name if hasattr(item, 'name') else None for item in items]
                 for i in item_names:

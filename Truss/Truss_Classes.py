@@ -189,6 +189,7 @@ class Node():
         self.name = name
         self.position = position if position is not None else Position()
         self.graphic = RigidPivotPoint(position.x, position.y, 10,30)
+        self.verticalLoad = 0.0  #  added a default value if user does not choose one
 
     def __eq__(self, other):
         """
@@ -206,11 +207,19 @@ class Link():
         """
         Basic definition of a link contains a name and names of node1 and node2
         """
+        """
+        The lines below titled "# new" add default values for the user if none are added by them.
+        Steel is also being selected as the material
+        """
         self.name=name
         self.node1_Name=node1
         self.node2_Name=node2
         self.length=None
         self.angleRad=None
+        self.width = 0.1          # new
+        self.thickness = 0.05     # new
+        self.material = 'steel'   # new
+        self.weight = 0.0         # new
         self.graphic=RigidLink(0,0,1,1)
         self.graphic.name=name
 
@@ -425,7 +434,9 @@ class TrussView():
             l.graphic = RigidLink(n1.position.x - offset.x, -(n1.position.y - offset.y), n2.position.x - offset.x,
                                   -(n2.position.y - offset.y), radius=3, pen=self.penLink, brush=self.brushLink, name="link name = "+l.name)
             # build a tool tip string
-            st = 'link: ' + l.name + '\n'
+            st = ('Link: {}\nLength: {:0.2f} ft\nWeight {:0.2f} lb\n'                   #  New
+                  'Material: {}\nWidth: {:0.2f} ft, Thickness: {:0.2f} ft').format(
+                    l.name, l.length, l.weight, l.material, l.width, l.thickness)
             # assign tool tip string
             l.graphic.setToolTip(st)
             scene.addItem(l.graphic)
@@ -440,6 +451,8 @@ class TrussView():
             toolTip = "Node: " + n.name
             if n.name.lower() == 'left' or n.name.lower() == 'right':
                 n.graphic = RigidPivotPoint(x, -y, 10, 18, brush=self.brushPivot, name=n.name)
+                toolTip += "\nVertical Load: {:0.2f} lbs".format(n.verticalLoad)
+                n.graphic.setToolTip(toolTip)
                 self.scene.addItem(n.graphic)
             # self.drawACircle(centerX=x,centerY=y,Radius=8,pen=self.penNode,brush=self.brushNode, name=toolTip, tooltip=toolTip)
             self.drawALabel(x=x - 5, y=y + 15, str=n.name, pen=self.penLabel)
@@ -503,12 +516,12 @@ class TrussController():
         self.truss=TrussModel()  # create a new truss object
         for L in data:  #scan through all the lines
             L=L.strip()
-            if L.find('#') == 0:
-                pass # L is a comment
+            if L.startswith('#'):
+                continue
             else:
                 Cells=L.split(',')
                 if len(Cells)<=1:
-                    pass  # may contain a keyword but no comma delimited data
+                    continue  # may contain a keyword but no comma delimited data    # new
                 elif Cells[0].lower().find('material')>=0:
                     sut=float(Cells[1].strip())
                     sy=float(Cells[2].strip())
@@ -526,8 +539,22 @@ class TrussController():
                     name=Cells[1].strip()
                     n1=Cells[2].strip()
                     n2=Cells[3].strip()
-                    self.truss.links.append(Link(name=name, node1=n1, node2=n2))
+                    #self.truss.links.append(Link(name=name, node1=n1, node2=n2))   # not using
+                    if len(Cells) >= 7:
+                        width = float(Cells[4].strip())
+                        thickness = float(Cells[5].strip())
+                        material = float(Cells[6].strip())
+                    else:
+                        width = 0.1
+                        thickness = 0.05
+                        material = 'steel'
+                    link = Link(name=name, node1=n1, node2=n2)
+                    link.width = width
+                    link.thickness = thickness
+                    link.material = material
+                    self.truss.links.append(link)
         self.calcLinkVals()
+        self.computeSupportLoads()
         self.displayReport()
         self.drawTruss()
 
@@ -560,6 +587,19 @@ class TrussController():
                 r=n2.position-n1.position
                 l.length=r.mag()
                 l.angleRad=r.getAngleRad()
+                density = 490 if l.material.lower() == 'steel' else 170
+                l.weight = l.length * l.width * l.thickness * density
+
+    def computeSupportLoads(self):
+        for n in self.truss.nodes:
+            n.verticalLoad = 0.0
+        for l in self.truss.links:
+            n1 = self.getNode(l.node1_Name)
+            n2 = self.getNode(l.node2_Name)
+            if n1 is not None:
+                n1.verticalLoad += 0.5 * l.weight
+            if n2 is not None:
+                n2.verticalLoad += 0.5 * l.weight
 
     def setDisplayWidgets(self, args):
         self.view.setDisplayWidgets(args)
@@ -569,6 +609,22 @@ class TrussController():
 
     def drawTruss(self):
         self.view.buildScene(truss=self.truss)
+
+    """
+    Added definitions for the new terms
+    """
+    def setinstallSceneEventFilter(self, filterObj):
+        self.view.scene.installEventFilter(filterObj)
+
+    def itemAt(self, scenePos, transform):
+        return self.view.scene.itemAt(scenePos, transform)
+
+    def sceneItems(self, pos):
+        return self.view.scene.items(pos)
+
+    def itemAtScene(self):
+        return self.view.scene
+
 
 #endregion
 
